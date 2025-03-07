@@ -50,6 +50,11 @@ function createActivityCardType1(activity) {
   location.textContent = `Local: ${activity.address}`;
   infoContainer.appendChild(location);
 
+  // Quantidade máxima de participantes
+  const registrationLimit = document.createElement("p");
+  registrationLimit.textContent = `Limite de inscrições: ${activity.maxQuantitySubscribers}`;
+  infoContainer.appendChild(registrationLimit);
+
   // Membros participantes
   const participantsTitle = document.createElement("p");
   participantsTitle.textContent = "Participantes:";

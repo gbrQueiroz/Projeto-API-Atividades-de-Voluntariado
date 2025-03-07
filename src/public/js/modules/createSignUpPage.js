@@ -163,6 +163,11 @@ function createSignUpPage() {
         return response.json();
       })
       .then((data) => {
+        // Limpa os campos de entrada
+        usernameInput.value = "";
+        emailInput.value = "";
+        passwordInput = "";
+
         // Se o cadastro for bem-sucedido, exibe uma notificação com a mensagem de sucesso
         createMessageNotification(data.message, " #28a745");
       })

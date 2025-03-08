@@ -478,7 +478,7 @@ const createActivity = (req, res) => {
     // Converte a data fornecida para um objeto Date, divide o horário em hora e minuto e ajusta o objeto Date de acordo com o horário
     const newActivityDate = new Date(date);
     const schedule = time.split(":");
-    newActivityDate.setHours(Number(schedule[0]) + 3, schedule[1]);
+    newActivityDate.setUTCHours(Number(schedule[0]) + 3, schedule[1]);
 
     // Verifica a validade da data informada; em caso negativo, retorna um erro 400
     if (new Date().getTime() >= newActivityDate.getTime()) {

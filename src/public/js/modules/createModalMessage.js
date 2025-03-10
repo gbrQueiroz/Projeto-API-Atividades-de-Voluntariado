@@ -51,16 +51,32 @@ function createMessageNotification(message, color) {
   closeButton.style.height = "25px";
   closeButton.style.textAlign = "center";
 
-  // Função encarregada de fechar a notificação
-  function closeNotification() {
-    document.getElementById("notificationContainer").remove();
-    clearTimeout(timeoutId);
+  // Função para remover a notificação
+  function removeNotification() {
+    // Mapeando o elemento da notificação
+    const notification = document.getElementById("notificationContainer");
+
+    // Verifica se o elemento existe
+    if (notification) {
+      // Se encontrado, remove o elemento do DOM
+      notification.remove();
+    }
   }
 
-  // Função que remove a notificação automaticamente após 5 segundos
+  // Configura um "setTimeout" para fechar a notificação após um tempo determinado
   const timeoutId = setTimeout(() => {
-    document.getElementById("notificationContainer").remove();
+    // Invoca a função para fechar a notificação
+    removeNotification();
   }, 5000);
+
+  // Função responsável por fechar a notificação manualmente
+  function closeNotification() {
+    // Invoca a função para fechar a notificação
+    removeNotification();
+
+    // Cancela o 'timeout' configurado caso o usuário tenha fechado a notificação antes do tempo
+    clearTimeout(timeoutId);
+  }
 
   // Adicionando a notificação ao corpo da página
   document.body.appendChild(notificationContainer);

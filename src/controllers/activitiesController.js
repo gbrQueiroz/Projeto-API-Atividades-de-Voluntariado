@@ -534,9 +534,9 @@ const createActivity = (req, res) => {
   });
 };
 
-// Responsável por atualizar uma atividade
+// Responsável por atualizar uma tarefa
 const updateActivity = (req, res) => {
-  // Extração dos dados do objeto da requisição necessários para atualizar a atividade
+  // Extração dos dados necessários do objeto da requisição para realizar a atualização da atividade
   const activityId = req.body.activityId;
   const title = req.body.title;
   const description = req.body.description;
@@ -559,38 +559,38 @@ const updateActivity = (req, res) => {
       .json({ error: "Necessário preencher todos os campos" });
   }
 
-  // Verifica se o título fornecido está no padrão desejado; caso negativo, retorna um erro 400
+  // Verifica se o título fornecido segue o padrão desejado; caso contrário, retorna um erro 400
   if (typeof title !== "string" || title.length === 0) {
     return res
       .status(400)
       .json({ error: "O título deve ser uma string não vazia" });
   }
 
-  // Verifica se a descrição fornecida está no padrão desejado; caso negativo, retorna um erro 400
+  // Verifica se a descrição fornecida segue o padrão desejado; caso contrário, retorna um erro 400
   if (typeof description !== "string" || description.length === 0) {
     return res
       .status(400)
       .json({ error: "A descrição deve ser uma string não vazia" });
   }
 
-  // Verifica se a data fornecida está no padrão desejado; caso negativo, retorna um erro 400
+  // Verifica se a data fornecida segue o padrão desejado; caso contrário, retorna um erro 400
   if (typeof date !== "string" || date.length === 0) {
     return res.status(400).json({ error: "Uma data deve ser fornecida" });
   }
 
-  // Verifica se o horário fornecido está no padrão desejado; caso negativo, retorna um erro 400
+  // Verifica se o horário fornecido segue o padrão desejado; caso contrário, retorna um erro 400
   if (typeof time !== "string" || time.length === 0) {
     return res.status(400).json({ error: "Um horário deve ser fornecido" });
   }
 
-  // Verifica se o endereço fornecido está no padrão desejido; caso negativo, retorna um erro 400
+  // Verifica se o endereço fornecido segue o padrão desejado; caso contrário, retorna um erro 400
   if (typeof address !== "string" || address.length === 0) {
     return res
       .status(400)
       .json({ error: "O endereço deve ser uma string não vazia" });
   }
 
-  // Verifica se o número máximo de participantes fornecido está no padrão desejado; caso negativo, retorna um erro 400
+  // Verifica se o número máximo de participantes fornecido segue o padrão desejado; caso contrário, retorna um erro 400
   if (
     !Number.isInteger(Number(maxQuantitySubscribers)) ||
     Number(maxQuantitySubscribers) <= 0
@@ -601,31 +601,62 @@ const updateActivity = (req, res) => {
     });
   }
 
-  // Busca a atividade no banco de dados
-  dbInstances.activitiesDb.get(`${activityId}`, (error, value) => {
-    // Se ocorrer erro ao buscar a atividade, retorna um erro 404
+  // Obtém todas as atividades já cadastradas no banco de dados
+  dbInstances.activitiesDb.readAllData((error, data) => {
+    // Se houver erro ao buscar as atividades, retorna um erro 500
     if (error) {
-      return res.status(404).json({ error: `Atividade não encontrada` });
+      return res
+        .status(500)
+        .json({ error: "Falha ao buscar atividades no banco de dados" });
     }
 
-    // Converte os dados da atividade existente para um objeto JavaScript
-    const activityData = JSON.parse(value.toString("utf8"));
-
-    // Verifica se a atividade já foi finalizada; caso positivo, retorna um erro 404
-    if (!isRegistrationTimeValid(activityData)) {
-      return res.status(404).json({ error: "Atividade já finalizada" });
-    }
-
-    // Converte a nova data para um objeto Date e ajusta a hora conforme o horário fornecido
+    // Converte a data fornecida para um objeto Date e ajusta a hora conforme o horário fornecido
     const newActivityDate = new Date(date);
     const schedule = time.split(":");
     newActivityDate.setUTCHours(Number(schedule[0]) + 3, schedule[1]);
 
-    // Verifica a validade da data informada; se inválida, retorna um erro 400
+    // Verifica a validade da data informada; caso não seja válida, retorna um erro 400
     if (new Date().getTime() >= newActivityDate.getTime()) {
       return res.status(400).json({
         error: "A data informada deve ser posterior à data atual",
       });
+    }
+
+    // Variável para armazenar os dados da atividade a ser modificada
+    let activityData = undefined;
+
+    // Itera pela lista de atividades
+    for (let i = 0; i < data.length; i++) {
+      // Atividade específica
+      const activity = data[i];
+
+      // Converte os dados da atividade em um objeto JavaScript
+      const dataActivity = JSON.parse(activity.value);
+
+      // Verifica se já existe uma atividade com as informações fornecidas; em caso afirmativo, retorna um erro 409 (Conflict)
+      if (
+        checkActivityExists(dataActivity, title, newActivityDate, address) &&
+        dataActivity.id !== activityId
+      ) {
+        return res.status(409).json({
+          error: "Já existe uma atividade com as informações fornecidas",
+        });
+      }
+
+      // Armazena os dados da atividade que se deseja atualizar
+      if (dataActivity.id === activityId) {
+        activityData = dataActivity;
+      }
+    }
+
+    // Se nenhuma atividade for encontrada com o ID fornecido para atualização no banco de dados, retorna um erro 404
+    if (activityData === undefined) {
+      return res.status(404).json({ error: `Atividade não encontrada` });
+    }
+
+    // Verifica se a atividade já foi finalizada; caso afirmativo, retorna um erro 404
+    if (!isRegistrationTimeValid(activityData)) {
+      return res.status(404).json({ error: "Atividade já finalizada" });
     }
 
     // Cria um novo objeto de atividade com os dados atualizados
@@ -636,83 +667,165 @@ const updateActivity = (req, res) => {
       date: newActivityDate,
       address: address,
       maxQuantitySubscribers: maxQuantitySubscribers,
-      subscribers: activityData.subscribers,
+      subscribers: [],
     };
 
-    // Atualiza a atividade no banco de dados com os novos dados
+    // Atualiza a atividade no banco de dados
     dbInstances.activitiesDb.put(
       `${activityId}`,
       JSON.stringify(newActivityData),
       (error) => {
-        // Se ocorrer erro ao salvar a atividade, retorna um erro 500
+        // Caso haja erro ao atualizar a atividade, retorna um erro 500
         if (error) {
           return res
             .status(500)
             .json({ error: "Falha ao atualizar a atividade" });
         }
 
-        // Se a atualização for bem-sucedida, retorna uma resposta de sucesso
-        res
-          .status(200)
-          .json({ success: true, message: "Atividade atualizada com sucesso" });
+        // Obtém todos os usuários para atualizar suas listas de atividades participadas
+        dbInstances.usersDb.readAllData((error, data) => {
+          // Se ocorrer um erro ao buscar os usuários, retorna um erro 500
+          if (error) {
+            return res
+              .status(500)
+              .json({ error: "Falha ao listar os usuários" });
+          }
+
+          // Variável para contar o número de usuários registrados na atividade
+          let quantityUsersRegistered = 0;
+
+          // Percorre todos os usuários
+          for (let i = 0; i < data.length; i++) {
+            const user = data[i];
+            const userData = JSON.parse(user.value);
+            const userRegisteredActivities = userData.registeredActivities;
+
+            // Verifica se o usuário está inscrito na atividade
+            const index = userRegisteredActivities.findIndex((activity) => {
+              if (activity === activityId) {
+                return true;
+              }
+            });
+
+            // Se o usuário não participar da atividade, avança para o próximo usuário
+            if (index === -1) {
+              continue;
+            }
+
+            // Aumenta o contador de usuários inscritos na atividade
+            quantityUsersRegistered++;
+
+            // Remove a atividade da lista de atividades inscritas do usuário
+            userRegisteredActivities.splice(index, 1);
+
+            // Cria um novo objeto com os dados atualizados do usuário
+            const newUserData = {
+              id: userData.id,
+              username: userData.username,
+              email: userData.email,
+              password: userData.password,
+              userType: userData.userType,
+              registeredActivities: userRegisteredActivities,
+            };
+
+            // Atualiza as informações do usuário no banco de dados
+            dbInstances.usersDb.put(
+              `${userData.id}`,
+              JSON.stringify(newUserData),
+              (error) => {
+                // Se ocorrer um erro ao atualizar os dados do usuário, retorna um erro 500
+                if (error) {
+                  return res.status(500).json({
+                    error:
+                      "Falha ao excluir a atividade na lista de atividades inscritas de cada usuário",
+                  });
+                }
+
+                // Decrementa o contador de usuários registrados na atividade
+                quantityUsersRegistered--;
+
+                // Quando todos os usuários forem processados, retorna com sucesso
+                if (quantityUsersRegistered === 0) {
+                  res.status(200).json({
+                    success: true,
+                    message: "Atividade atualizada com sucesso",
+                  });
+                }
+              }
+            );
+          }
+
+          // Caso a variável que conta o número de usuários registrados na atividade nunca seja atualizada, retorne uma mensagem de sucesso
+          if (quantityUsersRegistered === 0) {
+            res.status(200).json({
+              success: true,
+              message: "Atividade atualizada com sucesso",
+            });
+          }
+        });
       }
     );
   });
 };
 
-// Responsável por deletar uma atividade
+// Responsável por excluir uma atividade
 const deleteActivity = (req, res) => {
-  // Extração do ID da atividade a ser deletada do corpo da requisição
+  // Extração do ID da atividade a ser excluída do corpo da requisição
   const activityId = req.body.activityId;
 
-  // Busca a atividade no banco de dados
+  // Procura a atividade no banco de dados
   dbInstances.activitiesDb.get(`${activityId}`, (error, value) => {
     // Se a atividade não for encontrada, retorna um erro 404
     if (error) {
       return res.status(404).json({ error: "Atividade não encontrada" });
     }
 
-    // Converte os dados da atividade para um objeto JavaScript
+    // Converte os dados da atividade recuperada para um objeto JavaScript
     const activityData = JSON.parse(value.toString("utf8"));
 
-    // Verifica se a atividade já foi finalizada; caso positivo, retorna um erro 404
+    // Verifica se a atividade foi finalizada. Caso afirmativo, retorna um erro 404
     if (!isRegistrationTimeValid(activityData)) {
       return res.status(404).json({ error: "Atividade já finalizada" });
     }
 
-    // Deleta a atividade do banco de dados
+    // Exclui a atividade do banco de dados
     dbInstances.activitiesDb.del(`${activityId}`, (error) => {
-      // Se ocorrer erro ao deletar a atividade, retorna um erro 500
+      // Se ocorrer um erro ao excluir a atividade, retorna um erro 500
       if (error) {
         return res.status(500).json({ error: "Falha ao excluir a atividade" });
       }
 
-      // Busca todos os usuários registrados para remover a atividade das suas listas de atividades inscritas
+      // Busca todos os usuários registrados para remover a atividade de suas listas de inscrições
       dbInstances.usersDb.readAllData((error, data) => {
-        // Se ocorrer erro ao buscar os usuários, retorna um erro 500
+        // Se ocorrer um erro ao buscar os usuários, retorna um erro 500
         if (error) {
           return res.status(500).json({ error: "Falha ao listar os usuários" });
         }
 
-        // Itera sobre todos os usuários
+        // Variável que conta o número de usuários registrados na atividade
+        let quantityUsersRegistered = 0;
+
+        // Percorre todos os usuários no banco de dados
         for (let i = 0; i < data.length; i++) {
           const user = data[i];
           const userData = JSON.parse(user.value);
           const userRegisteredActivities = userData.registeredActivities;
 
-          // Verifica se o usuário está registrado na atividade
+          // Verifica se o usuário está inscrito na atividade
           const index = userRegisteredActivities.findIndex((activity) => {
             if (activity === activityId) {
               return true;
             }
           });
 
-          // Se o usuário não estiver registrado na atividade, continua para o próximo usuário
+          // Se o usuário não estiver inscrito na atividade, passa para o próximo usuário
           if (index === -1) {
             continue;
           }
+          // Incrementa o contador de usuários registrados na atividade
+          quantityUsersRegistered++;
 
-          // Remove a atividade da lista de atividades registradas do usuário
+          // Remove a atividade da lista de atividades inscritas do usuário
           userRegisteredActivities.splice(index, 1);
 
           // Cria um novo objeto com os dados atualizados do usuário
@@ -725,26 +838,40 @@ const deleteActivity = (req, res) => {
             registeredActivities: userRegisteredActivities,
           };
 
-          // Atualiza os dados do usuário no banco de dados
+          // Atualiza as informações do usuário no banco de dados
           dbInstances.usersDb.put(
             `${userData.id}`,
             JSON.stringify(newUserData),
             (error) => {
-              // Se ocorrer erro ao atualizar os dados do usuário, retorna um erro 500
+              // Se ocorrer um erro ao atualizar os dados do usuário, retorna um erro 500
               if (error) {
                 return res.status(500).json({
                   error:
                     "Falha ao excluir a atividade na lista de atividades inscritas de cada usuário",
                 });
               }
+
+              // Decrementa o contador de usuários registrados na atividade
+              quantityUsersRegistered--;
+
+              // Quando todos os usuários forem processados, retorna uma resposta de sucesso
+              if (quantityUsersRegistered === 0) {
+                res.status(200).json({
+                  success: true,
+                  message: "Atividade excluída com sucesso",
+                });
+              }
             }
           );
         }
 
-        // Se tudo correr bem, retorna uma resposta de sucesso
-        res
-          .status(200)
-          .json({ success: true, message: "Atividade excluída com sucesso" });
+        // Caso a variável que conta o número de usuários registrados na atividade nunca seja atualizada, retorne uma mensagem de sucesso
+        if (quantityUsersRegistered === 0) {
+          res.status(200).json({
+            success: true,
+            message: "Atividade excluída com sucesso",
+          });
+        }
       });
     });
   });
